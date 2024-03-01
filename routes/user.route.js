@@ -11,6 +11,6 @@ router.post("/send-verification-code",auth, code_verified);
 router.get("/send-verification-code",auth, get_code_berified);
 router.post("/login", login);
 router.post("/logout", logout);
-logout
+
 
 module.exports = router;
