@@ -11,10 +11,12 @@ const corsOptions = {
   origin: "*",
 };
 
-const app = express();
+/* const app = express(); */
 
-const { createServer } = require("http");
-const httpServer = createServer(app);
+/* const { createServer } = require("http"); */
+const { app, server } = require("./socket/socket");
+/* const httpServer = createServer(app); */
+/* const io = new Server(httpServer); */
 dataConnect();
 /* dataConnect(); */
 app.use(express.static(path.join(__dirname, "public")));
@@ -29,6 +31,6 @@ app.use("/api",favories)
 
 /* task */
 
-httpServer.listen(3001, () => {
+server.listen(3001, () => {
   console.log("server creer");
 });

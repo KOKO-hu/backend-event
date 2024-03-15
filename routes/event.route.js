@@ -17,11 +17,11 @@ const router = express.Router();
 router.get("/events/task", eventTask);
 /*  */
 router.get("/events/all", auth, getAllEvents);
-router.post("/createEvent", auth, upload.array("medias", 5), Events);
+router.post("/createEvent", auth, Events);
 router.get("/events/user", auth, findEventsByUserId);
 router.get("/events/:id", auth, getEventById);
-router.get("/cities",auth,getCityList)
-router.get("/quartier",auth,getDistrictList)
+router.get("/cities",auth,getCityList);
+router.get("/quartier",auth,getDistrictList);
 router.put("/evenements/:id", auth, updateEvent);
 router.delete("/evenements/:id", auth, deleteEvent);
 

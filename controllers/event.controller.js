@@ -1,14 +1,24 @@
 const Event = require("../models/event.model");
-const axios = require('axios');
-var cron = require('node-cron');
+const axios = require("axios");
+var cron = require("node-cron");
+const Favorite = require("../models/favorite.model");
 const Events = async (req, res) => {
   const eventsData = new Event({
-    id_user: req.auth.userId,
+    city: req.body.city,
+    country: req.body.country,
+    typeEvent: req.body.typeEvent,
     status: req.body.status,
+    district: req.body.district,
+    prix_de_billet_standart: req.body.prix_de_billet_standart,
+    prix_de_billet_vip: req.body.prix_de_billet_vip,
+    nombre_de_billet_standart: req.body.nombre_de_billet_standart,
+    nombre_de_billet_vip: req.body.nombre_de_billet_vip,
+    id_user: req.auth.userId,
+    categorie_event: req.body.categorie_event,
     title: req.body.title,
     description: req.body.description,
     date_debut: req.body.date_debut,
-    medias: req.files.map((file) => file.filename),
+    medias: req.body.medias,
     date_fin: req.body.date_fin,
   });
 
@@ -20,47 +30,70 @@ const Events = async (req, res) => {
 
 /* all event */
 
-  const getAllEvents = async (req, res) => {
-    try {
-      const page = parseInt(req.query.page) || 1; // Numéro de la page à récupérer, par défaut 1
-      const limit = parseInt(req.query.limit) || 10; // Nombre d'événements par page, par défaut 10
-      const category = req.query.category;
-      // Calcul de l'indice de départ pour la pagination
-      const startIndex = (page - 1) * limit;
-      let query = {};
-      if (category) {
-        query = { category: category };
-      }
-      // Utilisation de Mongoose pour récupérer une page spécifique d'événements
-      const events = await Event.find(query)
-        .skip(startIndex)
-        .limit(limit);
-  
-      res.json(events);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Erreur lors de la récupération des événements." });
+const getAllEvents = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1; // Numéro de la page à récupérer, par défaut 1
+    const limit = parseInt(req.query.limit) || 10; // Nombre d'événements par page, par défaut 10
+    const category = req.query.category ? req.query.category.replace(/"/g, '') : '';
+   
+    // Calcul de l'indice de départ pour la pagination
+    const startIndex = (page - 1) * limit;
+    let query = {};
+    if (category) {
+      query = { categorie_event: category };
     }
-  };
-  /* event by id */
-  const getEventById = async (req, res) => {
-    try {
-      const eventId = req.params.id; // Récupère l'ID de l'événement à partir des paramètres de la requête
-      
-      // Utilisation de Mongoose pour trouver l'événement par son ID
-      const event = await Event.findById(eventId);
-      
-      // Vérifie si l'événement existe
-      if (!event) {
-        return res.status(404).json({ error: "L'événement spécifié n'a pas été trouvé." });
-      }
-  
-      res.json(event); // Retourne l'événement trouvé
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Erreur lors de la récupération de l'événement." });
+
+    const totalEventsCount = await Event.countDocuments(query);
+    // Utilisation de Mongoose pour récupérer une page spécifique d'événements
+    const events = await Event.find(query).skip(startIndex).limit(limit);
+    // Création d'une liste des promesses de vérification des favoris pour chaque événement
+    const favoritePromises = events.map(async (event) => {
+      const result = await Favorite.findOne({ id_event: event._id });
+      return {
+        ...event.toObject(),
+        favorie: result !== null  // true si l'événement est favori, sinon false
+      };
+    });
+
+    // Attendre que toutes les promesses se résolvent
+    const eventResult = await Promise.all(favoritePromises);
+    const pagination = {
+      currentPage: page,
+      totalPages: Math.ceil(totalEventsCount / limit),
+      totalEvents: totalEventsCount,
+      perPage: limit
+    };
+    res.json({ events: eventResult, pagination: pagination });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération des événements." });
+  }
+};
+/* event by id */
+const getEventById = async (req, res) => {
+  try {
+    const eventId = req.params.id; // Récupère l'ID de l'événement à partir des paramètres de la requête
+
+    // Utilisation de Mongoose pour trouver l'événement par son ID
+    const event = await Event.findById(eventId);
+
+    // Vérifie si l'événement existe
+    if (!event) {
+      return res
+        .status(404)
+        .json({ error: "L'événement spécifié n'a pas été trouvé." });
     }
-  };
+
+    res.json(event); // Retourne l'événement trouvé
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération de l'événement." });
+  }
+};
 /* event create in user */
 const findEventsByUserId = async (req, res, next) => {
   try {
@@ -100,7 +133,9 @@ const updateEvent = async (req, res) => {
     const eventId = req.params.id;
     const updateData = req.body;
 
-    const updatedEvent = await Event.findByIdAndUpdate(eventId, updateData, { new: true });
+    const updatedEvent = await Event.findByIdAndUpdate(eventId, updateData, {
+      new: true,
+    });
 
     if (!updatedEvent) {
       return res.status(404).json({ message: "Événement non trouvé" });
@@ -109,7 +144,9 @@ const updateEvent = async (req, res) => {
     res.json(updatedEvent);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Erreur lors de la mise à jour de l'événement." });
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la mise à jour de l'événement." });
   }
   next();
 };
@@ -128,7 +165,9 @@ const deleteEvent = async (req, res) => {
     res.json({ message: "Événement supprimé avec succès" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Erreur lors de la suppression de l'événement." });
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la suppression de l'événement." });
   }
   next();
 };
@@ -136,66 +175,49 @@ const deleteEvent = async (req, res) => {
 /* task event */
 const eventTask = (req, res) => {
   console.log("Tâche démarrée");
-   cron.schedule('* * * * *', () => {
-    console.log('Exécution d\'une tâche toutes les minutes')
-    res.send('Exécution d\'une tâche toutes les minutes');
-  }); 
-  res.send('Tâche planifiée avec succès');
-}
+  cron.schedule("* * * * *", () => {
+    console.log("Exécution d'une tâche toutes les minutes");
+    res.send("Exécution d'une tâche toutes les minutes");
+  });
+  res.send("Tâche planifiée avec succès");
+};
 /* list ville */
-const getCityList= async (req, res) => {
-  const countryCode = req.query.countryCode; 
-  const page = parseInt(req.query.page) || 1; 
-  const pageSize = parseInt(req.query.pageSize) || 10;
+const getCityList = async (req, res) => {
+  const countryCode = req.query.countryCode;
 
   try {
     const response = await axios.get(
       `http://api.geonames.org/searchJSON?country=${countryCode}&featureClass=P&username=koko`
     );
 
-    const totalCities = response.data.totalResultsCount;
-    const totalPages = Math.ceil(totalCities / pageSize);
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, totalCities);
-
-    const cities = response.data.geonames.slice(startIndex, endIndex).map(city => {
+    const cities = response.data.geonames.map((city) => {
       return {
         name: city.name,
         latitude: city.lat,
         longitude: city.lng,
-        population: city.population 
+        population: city.population,
       };
     });
-
-    res.status(200).json({
-      cities,
-      page,
-      totalPages,
-      pageSize,
-      totalCities
-    }); // Répond avec la liste des villes paginées et leurs informations
+    cities.sort((a, b) => a.name.localeCompare(b.name));
+    res.status(200).json({ cities }); // Répond avec la liste de toutes les villes et leurs informations
   } catch (error) {
-    console.error('Erreur lors de la récupération des villes:', error.response.data);
-    res.status(500).json({ error: 'Une erreur est survenue lors de la récupération des villes.' });
+    console.error("Erreur lors de la récupération des villes:", error.response);
+    res
+      .status(500)
+      .json({
+        error: "Une erreur est survenue lors de la récupération des villes.",
+      });
   }
 };
-/* liste des quartiers */
-const getDistrictList= async (req, res) => {
-  const city = req.query.city; 
-  const page = parseInt(req.query.page) || 1; 
-  const pageSize = parseInt(req.query.pageSize) || 10;
 
+/* liste des quartiers */
+const getDistrictList = async (req, res) => {
+  const city = req.query.city;
   try {
     const response = await axios.get(
       `https://overpass-api.de/api/interpreter?data=[out:json];area[name="${city}"];(node["place"="neighbourhood"](area);way["place"="neighbourhood"](area););out;`
     );
-
-    const totalCities = response.data.totalResultsCount;
-    const totalPages = Math.ceil(totalCities / pageSize);
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, totalCities);
-
-    const cities = response.elements.slice(startIndex, endIndex).map(city => {
+    const cities = response.data.elements.map((city) => {
       return {
         name: city.tags.name,
         latitude: city.lat,
@@ -203,18 +225,22 @@ const getDistrictList= async (req, res) => {
       };
     });
 
+    // Trier les quartiers par ordre alphabétique
+    cities.sort((a, b) => a.name.localeCompare(b.name));
+
     res.status(200).json({
-      quartiers : cities,
-      page,
-      totalPages,
-      pageSize,
-      totalCities
-    }); // Répond avec la liste des villes paginées et leurs informations
+      quartiers: cities,
+    });
   } catch (error) {
-    console.error('Erreur lors de la récupération des villes:', error.response.data);
-    res.status(500).json({ error: 'Une erreur est survenue lors de la récupération des villes.' });
+    console.error("Erreur lors de la récupération des villes:", error.response);
+    res
+      .status(500)
+      .json({
+        error: "Une erreur est survenue lors de la récupération des villes.",
+      });
   }
 };
+
 module.exports = {
   Events,
   findEventsByUserId,
@@ -224,5 +250,5 @@ module.exports = {
   getAllEvents,
   getEventById,
   eventTask,
-  getCityList
+  getCityList,
 };
