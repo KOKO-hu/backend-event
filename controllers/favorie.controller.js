@@ -73,7 +73,7 @@ const favories = async (req, res, next) => {
   const deleteFavorite = async (req, res) => {
     try {
       const favoriteId = req.params.favoriteId; // L'ID du favori à supprimer
-  
+  console.log(favoriteId)
       // Utilisez Mongoose pour supprimer le favori correspondant
       await Favorite.findByIdAndDelete(favoriteId);
   
